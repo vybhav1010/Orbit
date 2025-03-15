@@ -9,11 +9,14 @@ class StarSystem:
         self.star = star
         self.planets = planets
         self.rate_constant = rate_constant
+        self.star.vel = vec(0,0,0)
+        self.star.acc = vec(0,0,0)
 
     def animate(self):
         self.create_widget()
 
         for planet in self.planets:
+          
             self.set_planet(planet)
 
         dt = 1/self.rate_constant
@@ -22,6 +25,7 @@ class StarSystem:
             rate(self.rate_constant)
             for planet in self.planets:
                 self.update_planet(planet, dt)
+            self.update_star(dt)
 
 
             time_elapsed += dt
@@ -72,7 +76,6 @@ class StarSystem:
 
         def get_color(i):
            color_list = [color.red, color.orange, color.yellow, color.green, color.blue, color.purple, color.black, color.white]
-           print(color_list[i], i)
            if i < 1:
               pass
            else:
@@ -98,7 +101,6 @@ class StarSystem:
         def add_planet_final():
            self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, get_color(color_menu.index))
            
-           print(self.running)
 
         add_button = button(text='<b>Add</b>', 
              bind=add_planet_handler, name=None)
@@ -106,29 +108,26 @@ class StarSystem:
 
     def add_planet(self, dist, e, size, color):
       self.running = False
-      planet = sphere(pos=vec(dist, 0, 0),make_trail=True,color=color, radius=size, e =e, mass=1)
 
-      print(dist, e, "add")
+      def generate_name(dist, e):
+         return str(random() * dist + e)
+
+      planet = sphere(pos=vec(dist, 0, 0),make_trail=True, trail_type="points", interval = 100, retain=70, color=color, radius=size, name=generate_name(dist,e), e =e, mass=size * 5)
+
 
       self.set_planet(planet)
       self.planets.append(planet)
+
 
       self.running = True  
 
  
     def update_planet(self, planet, dt):
-        
-
         pos_vector = planet.pos-self.star.pos
 
-
-        
         theta = atan2(pos_vector.y, pos_vector.x)
-        
-        try:
-            planet.vel = planet.vel + planet.acc * dt
-        except TypeError:
-            print(planet.color)
+
+        planet.vel = planet.vel + planet.acc * dt
     
         acc_planet_mag = self.star.mass/math.pow(mag(pos_vector), 2)
         
@@ -136,20 +135,47 @@ class StarSystem:
         
         planet.pos = planet.pos + planet.vel * dt
 
+        update_list = [p for p in self.planets if p.name != planet.name]
+
+        print(len(self.planets))
+
+        update_list.append(self.star)
+
+        self.update_others(planet, update_list, pos_vector)
+
+    def update_star(self, dt):
+       self.star.vel = self.star.vel + self.star.acc * dt
+
+       self.star.pos = self.star.pos + self.star.vel * dt
+       self.star.acc = vec(0,0,0)
+
+
+    def update_others(self, planet, others, pos_vector):
+       for object in others:
+          reverse_pos_vector = object.pos - pos_vector
+          theta = atan2(reverse_pos_vector.y, reverse_pos_vector.x)
+
+          acc_mag = planet.mass/math.pow(mag(reverse_pos_vector), 2)
+
+          object.acc = object.acc + vec(acc_mag * cos(theta) * -1, acc_mag * sin(theta) * -1, 0)
+
+           
+
+
 
 au = 200
 
 
-venus = sphere(pos=vec(0.72 *au, 0, 0), name="venus", mass = 0.815, radius=9, e=0.0068, color = color.orange, make_trail=True)
-earth = sphere(pos=vec(au,0,0), mass=1, name="earth", e= 0.0167, radius=10, color=color.blue, make_trail=True)
+venus = sphere(pos=vec(0.72 *au, 0, 0), name="venus", mass = 0.815, radius=9, e=0.0068, color = color.orange, make_trail=True, trail_type="points", interval = 50, retain=1000, )
+earth = sphere(pos=vec(au,0,0), mass=100000, name="earth", e= 0.0167, radius=10, color=color.blue, make_trail=True, trail_type="points", interval = 50, retain=1000, )
 
 
 
-random_asteroid = sphere(pos=vec(2*au, 0, 0), name="asteroid", mass = 0.01, radius = 5, e=0.5, color=color.white, make_trail=True)
+#random_asteroid = sphere(pos=vec(2*au, 0, 0), name="asteroid", mass = 0.01, radius = 5, e=0.5, color=color.white, make_trail=True)
 
 sun = sphere(radius=20, mass=333000, color=color.yellow)
 
-solar_system = StarSystem(sun, [earth, venus], 200)
+solar_system = StarSystem(sun, [earth, venus], 500)
 
 
 solar_system.animate()
