@@ -21,39 +21,47 @@ class StarSystem:
 
         dt = 1/self.rate_constant
         time_elapsed = 0
-        while self.running:
+        while True:
             rate(self.rate_constant)
-            for planet in self.planets:
-                self.update_planet(planet, dt)
-            self.update_star(dt)
+
+            if self.running:
+               for planet in self.planets:
+                  self.update_planet(planet, dt)
+               self.update_star(dt)
 
 
-            time_elapsed += dt
+               time_elapsed += dt
 
     def set_planet(self, planet):
       pos_vector = planet.pos-self.star.pos
 
 
-      def velocity(e):       
+      def velocity(e, theta):       
         r = mag(pos_vector)
         if(e >= 0 and e < 1):
-            sma = r/(1 + e)
-            v_mag = math.sqrt(self.star.mass * ((2/r) - (1/sma)))
-            return vec(0, v_mag, 0)
+            sma = planet.sma
+            v_mag_apogee = math.sqrt(self.star.mass * ((2/planet.dist) - (1/sma)))
+            h = planet.dist * v_mag_apogee
+            return (self.star.mass/h) * vec(sin(theta) * -1, (e+cos(theta)), 0)
         elif(e == 1):
-            v_mag = math.sqrt(self.star.mass * (2/r))
-            return vec(0, v_mag, 0)
+            v_mag_apogee = math.sqrt(self.star.mass * ((2/planet.dist)))
+            h = planet.dist * v_mag_apogee
+            return (self.star.mass/h) * vec(sin(theta) * -1, (e+cos(theta)), 0)
         elif(e >= 1):
-            sma = r/(1-e)
-            v_mag = math.sqrt(self.star.mass * ((2/r) - (1/sma)))
-            return vec(0, v_mag, 0) 
-        
+            sma = planet.sma
+            print(sma, "sma")
+            v_mag_apogee = math.sqrt(self.star.mass * ((2/planet.dist) - (1/sma)))
+            h = planet.dist * v_mag_apogee
+            return (self.star.mass/h) * vec(sin(theta) * -1, (e+cos(theta)), 0)
+
       acc_planet_mag = self.star.mass/math.pow(mag(pos_vector), 2)
     
         
       theta = atan2(pos_vector.y, pos_vector.x)
 
-      planet.vel = velocity(planet.e)
+      theta_orbit = atan2(pos_vector.y * -1, pos_vector.x * -1)
+
+      planet.vel = velocity(planet.e, theta_orbit)
         
       planet.acc = vec(acc_planet_mag * cos(theta) * -1, acc_planet_mag * sin(theta) * -1, 0)
     
@@ -70,6 +78,9 @@ class StarSystem:
 
         def p_size():
            stext.text = f"size: {size_slider.value} \n"
+
+        def p_theta():
+            ttext.text = f"theta: {round(theta_slider.value/math.pi, 2)}π \n"
 
         def dummy():
            return   
@@ -92,6 +103,9 @@ class StarSystem:
         size_slider = slider(bind=p_size,min=0, max=50)
         stext = wtext(text=f"size: {size_slider.value} \n")
 
+        theta_slider = slider(bind=p_theta,min=0, max=2*math.pi)
+        ttext = wtext(text=f"theta: {round(theta_slider.value/math.pi,2)}π \n")        
+
         color_menu = menu(choices=choice_list, bind=dummy)
 
 
@@ -99,20 +113,47 @@ class StarSystem:
            add_planet_final()
 
         def add_planet_final():
-           self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, get_color(color_menu.index))
+           self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, get_color(color_menu.index), theta_slider.value)
            
 
         add_button = button(text='<b>Add</b>', 
              bind=add_planet_handler, name=None)
+        pause_button = button(text='<b>Pause/Play</b>', bind=self.pause_play, name=None)
+   
+    def pause_play(self):
+      self.running  = not self.running  
 
-
-    def add_planet(self, dist, e, size, color):
+    def add_planet(self, dist, e, size, color, theta):
       self.running = False
 
       def generate_name(dist, e):
          return str(random() * dist + e)
+      
+      def position(e, dist, theta):
+         if(e >= 0 and e < 1):
+            sma = dist/(1+e)
+            r = (sma * (1-math.pow(e, 2)))/(1+e * cos(theta))
+            return vec(r * cos(theta) * -1, r * sin(theta) * -1, 0)
+         elif(e == 1):
+            r = (2 * dist)/(1+ cos(theta))
+            return vec(r * cos(theta) * -1, r * sin(theta) * -1, 0)
+         elif(e > 1):
+            sma = dist/(1-e)
+            r = (sma * (math.pow(e,2) -1))/(1+e * cos(theta))
+            return vec(r * cos(theta - math.pi) * -1, r * sin(theta - math.pi) * -1, 0)
+         
 
-      planet = sphere(pos=vec(dist, 0, 0),make_trail=True, trail_type="points", interval = 100, retain=70, color=color, radius=size, name=generate_name(dist,e), e =e, mass=size * 5)
+ 
+
+      planet = sphere(pos=position(e,dist, theta),make_trail=True, trail_type="points", interval = 100, retain=1000, color=color, radius=size, 
+      name=generate_name(dist,e), dist=dist, e=e, mass=size, sma=0)
+
+      if (e>=0 and e<1):
+         planet.sma = planet.dist/(1+e)
+      elif(e >=1):
+         planet.sma = planet.dist/(1-e)
+      else:
+         planet.sma=0
 
 
       self.set_planet(planet)
@@ -135,13 +176,13 @@ class StarSystem:
         
         planet.pos = planet.pos + planet.vel * dt
 
-        update_list = [p for p in self.planets if p.name != planet.name]
+      #   update_list = [p for p in self.planets if p.name != planet.name]
 
-        print(len(self.planets))
+      #   print(len(self.planets))
 
-        update_list.append(self.star)
+      #   update_list.append(self.star)
 
-        self.update_others(planet, update_list, pos_vector)
+      #   self.update_others(planet, update_list, pos_vector)
 
     def update_star(self, dt):
        self.star.vel = self.star.vel + self.star.acc * dt
@@ -166,16 +207,16 @@ class StarSystem:
 au = 200
 
 
-venus = sphere(pos=vec(0.72 *au, 0, 0), name="venus", mass = 0.815, radius=9, e=0.0068, color = color.orange, make_trail=True, trail_type="points", interval = 50, retain=1000, )
-earth = sphere(pos=vec(au,0,0), mass=100000, name="earth", e= 0.0167, radius=10, color=color.blue, make_trail=True, trail_type="points", interval = 50, retain=1000, )
+# venus = sphere(pos=vec(0.72 *au, 0, 0), name="venus", mass = 0.815, radius=9, e=0.0068, color = color.orange, make_trail=True, trail_type="points", interval = 50, retain=1000, )
+# earth = sphere(pos=vec(au,0,0), mass=1, name="earth", e= 0.0167, radius=10, color=color.blue, make_trail=True, trail_type="points", interval = 50, retain=1000, )
 
 
 
 #random_asteroid = sphere(pos=vec(2*au, 0, 0), name="asteroid", mass = 0.01, radius = 5, e=0.5, color=color.white, make_trail=True)
 
-sun = sphere(radius=20, mass=333000, color=color.yellow)
+sun = sphere(pos=vec(0,0,0),radius=20, mass=333000, color=color.yellow)
 
-solar_system = StarSystem(sun, [earth, venus], 500)
+solar_system = StarSystem(sun, [], 1000)
 
 
 solar_system.animate()
