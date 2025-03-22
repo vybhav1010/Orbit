@@ -1,6 +1,7 @@
 from vpython import *
 import math
 
+sbc = 5.67e-8 #Stefan-Boltzmann constant
 
 class StarSystem:
     def __init__(self, star, planets, rate_constant):
@@ -32,8 +33,16 @@ class StarSystem:
 
                time_elapsed += dt
 
+    def equilibrium_temperature(self, albedo, r):
+       flux = self.star.luminosity/(4 * math.pi * math.pow(r/200 * 1.496e11, 2)) * albedo
+       temp = math.pow(flux/(5.67e-8 * 4), 1/4)  
+       print(temp)
+       return temp
+                
+
     def set_planet(self, planet):
       pos_vector = planet.pos-self.star.pos
+
 
 
       def velocity(e, theta):       
@@ -49,10 +58,10 @@ class StarSystem:
             return (self.star.mass/h) * vec(sin(theta) * -1, (e+cos(theta)), 0)
         elif(e >= 1):
             sma = planet.sma
-            print(sma, "sma")
             v_mag_apogee = math.sqrt(self.star.mass * ((2/planet.dist) - (1/sma)))
             h = planet.dist * v_mag_apogee
             return (self.star.mass/h) * vec(sin(theta) * -1, (e+cos(theta)), 0)
+            
 
       acc_planet_mag = self.star.mass/math.pow(mag(pos_vector), 2)
     
@@ -62,8 +71,21 @@ class StarSystem:
       theta_orbit = atan2(pos_vector.y * -1, pos_vector.x * -1)
 
       planet.vel = velocity(planet.e, theta_orbit)
+
+     
         
       planet.acc = vec(acc_planet_mag * cos(theta) * -1, acc_planet_mag * sin(theta) * -1, 0)
+      planet.T = self.equilibrium_temperature(planet.albedo, mag(pos_vector)) 
+
+      planet.make_trail = True
+
+      red_value = 1/(1+math.exp(-planet.T/400))
+      planet.color = vec(red_value, 1-red_value, 1-red_value)
+
+
+      # planet.make_trail = True
+
+      
     
 
     def create_widget(self):
@@ -82,38 +104,44 @@ class StarSystem:
         def p_theta():
             ttext.text = f"theta: {round(theta_slider.value/math.pi, 2)}π \n"
 
+        def p_albedo():
+            atext.text = f"albedo: {albedo_slider.value} \n"
+
         def dummy():
-           return   
+           return  
 
-        def get_color(i):
-           color_list = [color.red, color.orange, color.yellow, color.green, color.blue, color.purple, color.black, color.white]
-           if i < 1:
-              pass
-           else:
-              return color_list[i-1]   
+      #   def get_color(i):
+      #      color_list = [color.red, color.orange, color.yellow, color.green, color.blue, color.purple, color.black, color.white]
+      #      if i < 1:
+      #         pass
+      #      else:
+      #         return color_list[i-1]   
            
-        choice_list = ['Color', 'red', 'orange', 'yellow', 'green', 'blue', 'purple']   
+      #   choice_list = ['Color', 'red', 'orange', 'yellow', 'green', 'blue', 'purple']   
            
 
-        distance_slider = slider(bind=p_dst,min=0.3, max=5)
+        distance_slider = slider(bind=p_dst,min=0.1, max=5)
         dtext = wtext(text=f"distance: {distance_slider.value} AU \n")
         dist = dist * self.au
         e_slider = slider(bind=p_e,min=0, max=5)
         etext = wtext(text=f"eccentriity: {e_slider.value} \n")
         size_slider = slider(bind=p_size,min=0, max=50)
-        stext = wtext(text=f"size: {size_slider.value} \n")
+        stext = wtext(text=f"size: {size_slider.value} (not indicative of mass)\n")
 
         theta_slider = slider(bind=p_theta,min=0, max=2*math.pi)
-        ttext = wtext(text=f"theta: {round(theta_slider.value/math.pi,2)}π \n")        
+        ttext = wtext(text=f"theta: {round(theta_slider.value/math.pi,2)}π \n") 
 
-        color_menu = menu(choices=choice_list, bind=dummy)
+        albedo_slider = slider(bind=p_albedo, min=0.1, max=1)
+        atext = wtext(text=f"albedo: {albedo_slider.value} \n")       
+
+      #   color_menu = menu(choices=choice_list, bind=dummy)
 
 
         def add_planet_handler():
            add_planet_final()
 
         def add_planet_final():
-           self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, get_color(color_menu.index), theta_slider.value)
+           self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, albedo_slider.value, theta_slider.value)
            
 
         add_button = button(text='<b>Add</b>', 
@@ -123,7 +151,7 @@ class StarSystem:
     def pause_play(self):
       self.running  = not self.running  
 
-    def add_planet(self, dist, e, size, color, theta):
+    def add_planet(self, dist, e, size, albedo, theta):
       self.running = False
 
       def generate_name(dist, e):
@@ -145,8 +173,8 @@ class StarSystem:
 
  
 
-      planet = sphere(pos=position(e,dist, theta),make_trail=True, trail_type="points", interval = 100, retain=1000, color=color, radius=size, 
-      name=generate_name(dist,e), dist=dist, e=e, mass=size, sma=0)
+      planet = sphere(pos=position(e,dist, theta),make_trail=True, trail_type="points", interval = 100, retain=1000, radius=size, 
+      name=generate_name(dist,e), dist=dist, e=e, mass=size, sma=0, albedo=albedo)
 
       if (e>=0 and e<1):
          planet.sma = planet.dist/(1+e)
@@ -175,6 +203,17 @@ class StarSystem:
         planet.acc = vec(acc_planet_mag * cos(theta) * -1, acc_planet_mag * sin(theta) * -1, 0)
         
         planet.pos = planet.pos + planet.vel * dt
+        planet.T = self.equilibrium_temperature(planet.albedo, mag(pos_vector))
+
+        red_value = 1/(1+math.exp(-planet.T/400))
+
+        planet.color = vec(red_value, 1-red_value, 1-red_value)
+
+        planet.trail_color = planet.color
+
+        print(planet.color)
+
+        
 
       #   update_list = [p for p in self.planets if p.name != planet.name]
 
@@ -214,7 +253,7 @@ au = 200
 
 #random_asteroid = sphere(pos=vec(2*au, 0, 0), name="asteroid", mass = 0.01, radius = 5, e=0.5, color=color.white, make_trail=True)
 
-sun = sphere(pos=vec(0,0,0),radius=20, mass=333000, color=color.yellow)
+sun = sphere(pos=vec(0,0,0),radius=20, mass=333000,luminosity = 3.83e26, color=color.yellow)
 
 solar_system = StarSystem(sun, [], 1000)
 
