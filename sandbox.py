@@ -88,6 +88,7 @@ class Sandbox:
   def clear_objects(self):
     for object in self.objects:
       object.visible = False
+      object.clear_trail()
       self.objects.remove(object)
 
   def pause_play(self):
@@ -100,7 +101,7 @@ class Sandbox:
         return str(random() * x + y)
 
     object = sphere(pos=vec(x, y, 0), vel=vel, make_trail=True, trail_type="points", interval = 200, retain=70, color=color, radius=size, 
-    name=generate_name(x,y), acc=vec(0,0,0), mass=size*10000)
+    name=generate_name(x,y), acc=vec(0,0,0), mass=size*100000)
 
     self.objects.append(object)
 
@@ -116,7 +117,8 @@ class Sandbox:
       except ZeroDivisionError:
          acc_mag = planet.mass/math.pow(0.0001, 2)
 
-      object.acc = object.acc + vec(acc_mag * cos(theta) * -1, acc_mag * sin(theta) * -1, 0)  
+      object.acc = object.acc + vec(acc_mag * cos(theta) * -1, acc_mag * sin(theta) * -1, 0)
+
 
   def update(self, object, dt):
       object.vel = object.vel + object.acc * dt

@@ -2,19 +2,31 @@ from vpython import *
 import math
 
 sbc = 5.67e-8 #Stefan-Boltzmann constant
+h = 6.626e-34
+c = 299792458
+k_b = 1.380649e-23
+solar_radius = 40
+true_solar_radius = 6.957e8
 
 class StarSystem:
+    
     def __init__(self, star, planets, rate_constant):
-        self.au = 200
+        self.au = 750
         self.running = True
         self.star = star
         self.planets = planets
         self.rate_constant = rate_constant
-        self.star.vel = vec(0,0,0)
-        self.star.acc = vec(0,0,0)
+
+    def create_light(self):
+       local_light(pos=self.star.pos + vec(0,10,0), color=color.white)
+       local_light(pos=self.star.pos + vec(0,-10,0), color=color.white)
 
     def animate(self):
         self.create_widget()
+      #   self.create_light()
+        self.graph_temp_mapping()
+        self.black_body_graph(self.get_stellar_temperature(self.star.luminosity))
+        print(self.get_stellar_temperature(self.star.luminosity))
 
         for planet in self.planets:
           
@@ -34,14 +46,55 @@ class StarSystem:
                time_elapsed += dt
 
     def equilibrium_temperature(self, albedo, r):
-       flux = self.star.luminosity/(4 * math.pi * math.pow(r/200 * 1.496e11, 2)) * albedo
-       temp = math.pow(flux/(5.67e-8 * 4), 1/4)  
+       flux = self.star.luminosity/(4 * math.pi * math.pow(r/self.au * 1.496e11, 2)) * albedo
+       temp = math.pow(flux/(sbc * 4), 1/4)  
        print(temp)
        return temp
+    
+    def get_stellar_temperature(self, L):
+       radius = (((self.star.radius)/solar_radius) * true_solar_radius)
+       print(L, math.pow(L/(4 * math.pi * math.pow(radius, 2) *  sbc), 1/4))
+       return math.pow(L/(4 * math.pi * math.pow(radius, 2) *  sbc), 1/4)
+       
+    
+    def black_body_graph(self, T):
+      blackbody_graph = graph(width=400, height=200, background=color.white, foreground=color.black,
+         xtitle="Wavelength (m)", ytitle="Intensity (W/m^2)", title=f"Black Body Radiation at {round(T)} K")
+      plot = gcurve(color=color.red, graph=blackbody_graph)
+      scene.append_to_caption("\n")
+      def planck_function(wavelength, T):
+         try:
+            return (2 * h * math.pow(c,2))/math.pow(wavelength, 5) * 1/(math.exp((h * c)/(wavelength * k_b * T)) - 1)
+
+         except OverflowError:
+            print(wavelength, T)
+            return 0
+      for i in range(1,5000):
+         wavelength = i * 1e-9
+         if(i <= 500):
+            print(planck_function(wavelength, T))
+         intensity = planck_function(wavelength, T)
+         plot.plot(data=(wavelength, intensity))
+
+     
+
+    def graph_temp_mapping(self):
+      line_break = wtext(text="\n \n")
+      def get_color(temp):
+         red_value = 1/(1+math.exp(-temp/400))
+         return vec(red_value, 1-red_value, 1-red_value)
+      
+      T_key = graph(height=100, ymin=0, ymax=1, background=color.white, foreground=color.black,
+         xtitle="Planetary Temperature (K)")
+
+      
+      for i in range(1000):
+         bars = gvbars(data=[(i,1)], color=get_color(i), graph=T_key)
                 
 
     def set_planet(self, planet):
       pos_vector = planet.pos-self.star.pos
+      
 
 
 
@@ -91,48 +144,139 @@ class StarSystem:
     def create_widget(self):
         dist = 0
 
-        def p_dst():
-          dtext.text = f"distance: {distance_slider.value} AU \n"
-
-
-        def p_e():
-          etext.text = f"eccentricity: {e_slider.value} \n"
-
-        def p_size():
-           stext.text = f"size: {size_slider.value} \n"
-
-        def p_theta():
-            ttext.text = f"theta: {round(theta_slider.value/math.pi, 2)}π \n"
-
-        def p_albedo():
-            atext.text = f"albedo: {albedo_slider.value} \n"
-
         def dummy():
            return  
 
-      #   def get_color(i):
-      #      color_list = [color.red, color.orange, color.yellow, color.green, color.blue, color.purple, color.black, color.white]
-      #      if i < 1:
-      #         pass
-      #      else:
-      #         return color_list[i-1]   
+        test_slider = slider(bind=dummy, min=0.1, max=1)
+
+        slider_type = type(test_slider)
+
+        test_slider.delete()
+
+        def p_dst(evt=None):
+         dmax = 10
+         dmin = 0.1
+         if type(evt) == slider_type:
+            dtext.text = f" distance: {distance_slider.value} AU \n"
+         else:
+            if evt.number <= dmax and evt.number >= dmin:
+               dtext.text = f" distance: {evt.number} AU \n"
+               distance_slider.value = evt.number
+            else:
+               dtext.text = f" distance: {distance_slider.value} AU \n"
+               return
+
+        def p_e(evt=None):
+          emax = 5
+          emin = 0
+          if type(evt) == slider_type:
+            etext.text = f" eccentricity: {e_slider.value} \n"
+          else:
+            if evt.number <= emax and evt.number >= emin:
+               etext.text = f" eccentricity: {evt.number} \n"
+               e_slider.value = evt.number
+            else:
+               etext.text = f" eccentricity: {e_slider.value} \n"
+               return
+
+        def p_size(evt=None):
+           smax = 10
+           smin = 0
+           if type(evt) == slider_type:
+              stext.text = f" size: {size_slider.value} \n"
+           else:
+              if evt.number <= smax and evt.number >= smin:
+                 stext.text = f" size: {evt.number} \n"
+                 size_slider.value = evt.number
+              else:
+                 stext.text = f" size: {size_slider.value} \n"
+                 return
+
+        def p_theta(evt=None):
+            tmin = 0
+            tmax = 2*math.pi
+            if type(evt) == slider_type:   
+               ttext.text = f" theta: {round(theta_slider.value/math.pi, 2)}π \n"
+            else:
+               if evt.number <= tmax and evt.number >= tmin:
+                  ttext.text = f" theta: {round(evt.number/math.pi, 2)}π \n"
+                  theta_slider.value = evt.number
+               else:
+                  ttext.text = f" theta: {round(theta_slider.value/math.pi, 2)}π \n"
+                  return
+
+        def p_albedo(evt=None):
+            amax = 1
+            amin = 0.1
+            if type(evt) == slider_type:
+               atext.text = f" albedo: {albedo_slider.value} \n"
+            else:
+               if evt.number <= amax and evt.number >= amin:
+                  atext.text = f" albedo: {evt.number} \n"
+                  albedo_slider.value = evt.number
+               else:    
+                  atext.text = f" albedo: {albedo_slider.value} \n"
+                  return
+
+
+        def get_luminosity(T):
+             luminosity = 4 * math.pi * math.pow(self.star.radius, 2) * sbc * math.pow(T, 4)
+             return luminosity
+
+        def get_luminosity(i):
+           spectral_list = [color.red, color.orange, color.yellow, color.green, color.blue, color.purple, color.black, color.white]
+           if i < 1:
+              pass
+           else:
+              return color_list[i-1]
+
+        def change_spectral_class(evt):
+           if evt.index < 1:
+              pass
+           else:
+              self.get_star(evt.index)
+
+        def get_star(spectral):
+           # 1 - 7 correspond to OBAFGKM
+           if(spectral == 1):
+              self.star.color = color.red
+              self.star.size = 3
            
-      #   choice_list = ['Color', 'red', 'orange', 'yellow', 'green', 'blue', 'purple']   
+              
+              
+           
+        choice_list = ['O', 'B', 'A', 'F', 'G', 'K', 'M']
+
+           
            
 
-        distance_slider = slider(bind=p_dst,min=0.1, max=5)
-        dtext = wtext(text=f"distance: {distance_slider.value} AU \n")
+        distance_slider = slider(bind=p_dst,min=0.1, max=10)
+        dbox = winput(bind=p_dst, type='numeric')
+        dtext = wtext(text=f" distance: {distance_slider.value} AU \n")
         dist = dist * self.au
+
         e_slider = slider(bind=p_e,min=0, max=5)
-        etext = wtext(text=f"eccentriity: {e_slider.value} \n")
-        size_slider = slider(bind=p_size,min=0, max=50)
-        stext = wtext(text=f"size: {size_slider.value} (not indicative of mass)\n")
+        ebox = winput(bind=p_e, type='numeric')
+        etext = wtext(text=f" eccentriity: {e_slider.value} \n")
+
+
+        size_slider = slider(bind=p_size,min=0, max=10)
+        sbox = winput(bind=p_size, type='numeric')
+        stext = wtext(text=f" size: {size_slider.value} (not indicative of mass)\n")
+        
 
         theta_slider = slider(bind=p_theta,min=0, max=2*math.pi)
-        ttext = wtext(text=f"theta: {round(theta_slider.value/math.pi,2)}π \n") 
+        tbox = winput(bind=p_theta, type='numeric')
+        ttext = wtext(text=f" theta: {round(theta_slider.value/math.pi,2)}π \n")
+         
 
         albedo_slider = slider(bind=p_albedo, min=0.1, max=1)
-        atext = wtext(text=f"albedo: {albedo_slider.value} \n")       
+        abox = winput(bind=p_albedo, type='numeric')
+        atext = wtext(text=f" albedo: {albedo_slider.value} \n")
+
+        spectral_class_menu = menu(choices=choice_list, bind=dummy)
+        spectral_class_text = wtext(text=f" Spectral Class: {choice_list[spectral_class_menu.index]} \n")
+
 
       #   color_menu = menu(choices=choice_list, bind=dummy)
 
@@ -141,7 +285,7 @@ class StarSystem:
            add_planet_final()
 
         def add_planet_final():
-           self.add_planet(distance_slider.value * au, e_slider.value, size_slider.value, albedo_slider.value, theta_slider.value)
+           self.add_planet(distance_slider.value * self.au, e_slider.value, size_slider.value, albedo_slider.value, theta_slider.value)
            
 
         add_button = button(text='<b>Add</b>', 
@@ -178,7 +322,7 @@ class StarSystem:
 
       if (e>=0 and e<1):
          planet.sma = planet.dist/(1+e)
-      elif(e >=1):
+      elif(e > 1):
          planet.sma = planet.dist/(1-e)
       else:
          planet.sma=0
@@ -196,11 +340,15 @@ class StarSystem:
 
         theta = atan2(pos_vector.y, pos_vector.x)
 
-        planet.vel = planet.vel + planet.acc * dt
+        
     
         acc_planet_mag = self.star.mass/math.pow(mag(pos_vector), 2)
         
         planet.acc = vec(acc_planet_mag * cos(theta) * -1, acc_planet_mag * sin(theta) * -1, 0)
+
+        planet.vel = planet.vel + planet.acc * dt
+
+        print('acc', mag(planet.acc))
         
         planet.pos = planet.pos + planet.vel * dt
         planet.T = self.equilibrium_temperature(planet.albedo, mag(pos_vector))
@@ -224,10 +372,11 @@ class StarSystem:
       #   self.update_others(planet, update_list, pos_vector)
 
     def update_star(self, dt):
-       self.star.vel = self.star.vel + self.star.acc * dt
+      #  self.star.vel = self.star.vel + self.star.acc * dt
 
-       self.star.pos = self.star.pos + self.star.vel * dt
-       self.star.acc = vec(0,0,0)
+      #  self.star.pos = self.star.pos + self.star.vel * dt
+      #  self.star.acc = vec(0,0,0)
+      pass
 
 
     def update_others(self, planet, others, pos_vector):
@@ -243,8 +392,6 @@ class StarSystem:
 
 
 
-au = 200
-
 
 # venus = sphere(pos=vec(0.72 *au, 0, 0), name="venus", mass = 0.815, radius=9, e=0.0068, color = color.orange, make_trail=True, trail_type="points", interval = 50, retain=1000, )
 # earth = sphere(pos=vec(au,0,0), mass=1, name="earth", e= 0.0167, radius=10, color=color.blue, make_trail=True, trail_type="points", interval = 50, retain=1000, )
@@ -253,7 +400,10 @@ au = 200
 
 #random_asteroid = sphere(pos=vec(2*au, 0, 0), name="asteroid", mass = 0.01, radius = 5, e=0.5, color=color.white, make_trail=True)
 
-sun = sphere(pos=vec(0,0,0),radius=20, mass=333000,luminosity = 3.83e26, color=color.yellow)
+sun = sphere(pos=vec(0,0,0),radius=40, mass=333000,luminosity = 3.83e26, color=color.yellow, opacity=1)
+
+scene.height = 400
+scene.width = 800
 
 solar_system = StarSystem(sun, [], 1000)
 
